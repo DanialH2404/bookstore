@@ -3,16 +3,7 @@ const mysql = require('mysql2');
 const session = require('express-session');
 const flash = require('connect-flash');
 const multer = require('multer');
-const bodyParser = require('body-parser');
-const path = require('path');
 const app = express();
-
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(session({
-    secret: 'your-secret-key',
-    resave: false,
-    saveUninitialized: true
-}));
 
 // Set up multer for file uploads
 const storage = multer.diskStorage({
@@ -20,7 +11,7 @@ const storage = multer.diskStorage({
         cb(null, 'public/images'); // Directory to save uploaded files
     },
     filename: (req, file, cb) => {
-        cb(null, file.originalname);
+        cb(null, file.originalname); 
     }
 });
 
@@ -73,14 +64,13 @@ const checkAuthenticated = (req, res, next) => {
 
 // Middleware to check if user is admin
 const checkAdmin = (req, res, next) => {
-    if (req.session.user.role === 'admin') {
+    if (req.session.user && req.session.user.account === 'admin') {
         return next();
     } else {
         req.flash('error', 'Access denied');
         res.redirect('/shopping');
     }
 };
-
 // Middleware for form validation
 const validateRegistration = (req, res, next) => {
     const { username, email, password, address, contact, role } = req.body;
@@ -88,6 +78,7 @@ const validateRegistration = (req, res, next) => {
     if (!username || !email || !password || !address || !contact || !role) {
         return res.status(400).send('All fields are required.');
     }
+    
     if (password.length < 6) {
         req.flash('error', 'Password should be at least 6 or more characters long');
         req.flash('formData', req.body);
@@ -98,37 +89,25 @@ const validateRegistration = (req, res, next) => {
 
 // Define routes
 app.get('/', (req, res) => {
-    res.render('index', { user: req.session.user });
+    res.render('index', {user: req.session.user} );
 });
 
-app.get('/inventory', checkAuthenticated, checkAdmin, (req, res) => {
-    const user = req.session.user;
-    const search = req.query.search || "";
-    const genreFilter = req.query.genre || "";
-
-    let sql = "SELECT * FROM book WHERE 1"; // dummy condition to append AND clauses easily
-    const params = [];
-
-    if (search) {
-        sql += " AND title LIKE ?";
-        params.push(`%${search}%`);
+app.get('/inventory', (req, res) => {
+    if (!req.session.user || req.session.user.account !== 'admin') {
+        return res.redirect('/login');
     }
 
-    if (genreFilter) {
-        sql += " AND genre = ?";
-        params.push(genreFilter);
-    }
-
-    connection.query(sql, params, (error, results) => {
-        if (error) throw error;
+    const sql = 'SELECT * FROM book';
+    connection.query(sql, (err, results) => {
+        if (err) throw err;
         res.render('inventory', {
             books: results,
-            user: user,
-            search: search,
-            genreFilter: genreFilter
+            user: req.session.user
         });
     });
 });
+
+
 
 app.get('/register', (req, res) => {
     res.render('register', { messages: req.flash('error'), formData: req.flash('formData')[0] });
@@ -153,39 +132,75 @@ app.get('/login', (req, res) => {
 });
 
 app.post('/login', (req, res) => {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
 
-    if (!email || !password) {
-        req.flash('error', 'All fields are required.');
-        return res.redirect('/login');
+  if (!email || !password) {
+    req.flash('error', 'All fields are required.');
+    return res.redirect('/login');
+  }
+
+  const sql = 'SELECT * FROM users WHERE email = ? AND password = SHA1(?)';
+  connection.query(sql, [email, password], (err, results) => {
+    if (err) {
+      console.error('DB error during login:', err);
+      return res.status(500).send('Server error');
     }
 
-    const sql = 'SELECT * FROM users WHERE email = ? AND password = SHA1(?)';
-    connection.query(sql, [email, password], (err, results) => {
-        if (err) {
-            throw err;
-        }
+    if (results.length > 0) {
+      const user = results[0];
+      req.session.user = user;
+      req.flash('success', 'Login successful!');
 
-        if (results.length > 0) {
-            req.session.user = results[0];
-            req.flash('success', 'Login successful!');
-            if (req.session.user.role == 'user')
-                res.redirect('/shopping');
-            else
-                res.redirect('/inventory');
-        } else {
-            req.flash('error', 'Invalid email or password.');
-            res.redirect('/login');
-        }
-    });
+      
+      if (user.account === 'user') {
+        res.redirect('/shopping');
+      } else if (user.account === 'admin') {
+        res.redirect('/inventory');
+      } else {
+        // fallback for unknown roles
+        res.redirect('/');
+      }
+    } else {
+      req.flash('error', 'Invalid email or password.');
+      res.redirect('/login');
+    }
+  });
 });
 
+// changes i made
 app.get('/shopping', checkAuthenticated, (req, res) => {
-    connection.query('SELECT * FROM book', (error, results) => {
-        if (error) throw error;
-        res.render('shopping', { user: req.session.user, books: results, cart: req.session.cart || [] });
+    const search = req.query.search || '';
+    const genre = req.query.genre || '';
+
+    let sql = 'SELECT * FROM book WHERE 1=1';  
+    const params = [];
+
+    if (search) {
+        sql += ' AND title LIKE ?';
+        params.push(`%${search}%`);
+    }
+
+    if (genre) {
+        sql += ' AND genre = ?';
+        params.push(genre);
+    }
+
+    connection.query(sql, params, (error, results) => {
+        if (error) {
+            console.error('Database query error:', error);
+            return res.status(500).send('Database error');
+        }
+
+        res.render('shopping', {
+            user: req.session.user,
+            books: results,
+            cart: req.session.cart || [],
+            search,
+            genre
+        });
     });
 });
+
 
 app.post('/add-to-cart/:id', checkAuthenticated, (req, res) => {
     const bookId = parseInt(req.params.id);
@@ -209,28 +224,17 @@ app.post('/add-to-cart/:id', checkAuthenticated, (req, res) => {
                     bookId: book.bookId,
                     title: book.title,
                     author: book.author,
-                    price: Number(book.price),
+                    price: parseFloat(book.price),
                     quantity: quantity,
                     cover: book.cover
                 });
             }
 
-            res.redirect('/shopping');
+            res.redirect('/cart');
         } else {
             res.status(404).send("Book not found");
         }
     });
-});
-
-app.post('/remove-from-cart/:id', checkAuthenticated, (req, res) => {
-    const bookId = parseInt(req.params.id);
-
-    if (!req.session.cart) {
-        return res.redirect('/shopping');
-    }
-
-    req.session.cart = req.session.cart.filter(item => Number(item.bookId) !== bookId);
-    res.redirect('/cart');
 });
 
 app.get('/cart', checkAuthenticated, (req, res) => {
@@ -238,43 +242,11 @@ app.get('/cart', checkAuthenticated, (req, res) => {
     res.render('cart', { cart, user: req.session.user });
 });
 
-app.get('/checkout', checkAuthenticated, (req, res) => {
-    const cart = req.session.cart || [];
-        let total = 0;
-    for (let i = 0; i < cart.length; i++) {
-        total += Number(cart[i].price) * Number(cart[i].quantity);
-    }
-
-    res.render('checkout', { user: req.session.user, cart, total });
-});
-
-app.post('/confirm-checkout', checkAuthenticated, async (req, res) => {
-    const cart = req.session.cart || [];
-
-    for (let i = 0; i < cart.length; i++) {
-        const item = cart[i];
-        const bookId = item.bookId;
-
-        await new Promise((resolve, reject) => {
-            connection.query(
-                'UPDATE book SET quantity = quantity - 1 WHERE bookId = ? AND quantity > 0',
-                [bookId],
-                (err, result) => {
-                    if (err) reject(err);
-                    else resolve();
-                }
-            );
-        });
-    }
-    req.session.cart = [];
-    res.redirect('/shopping');
-});
-
-
 app.get('/logout', (req, res) => {
     req.session.destroy();
     res.redirect('/');
 });
+
 
 app.get('/book/:id', checkAuthenticated, (req, res) => {
     const bookId = req.params.id;
@@ -298,7 +270,7 @@ app.get('/addBook', checkAuthenticated, checkAdmin, (req, res) => {
 });
 
 app.post('/addBook', upload.single('cover'), (req, res) => {
-    const { title, author, isbn, quantity, price, genre } = req.body;
+    const {bookId, title, author, isbn, quantity, price, genre } = req.body;
     let cover;
     if (req.file) {
         cover = req.file.filename;
@@ -306,8 +278,8 @@ app.post('/addBook', upload.single('cover'), (req, res) => {
         cover = null;
     }
 
-    const sql = 'INSERT INTO books (title, author, isbn, quantity, price, genre, cover) VALUES (?, ?, ?, ?, ?, ?, ?)';
-    connection.query(sql, [title, author, isbn, quantity, price, genre, cover], (error, results) => {
+    const sql = 'INSERT INTO book (bookId,title, author, isbn, quantity, price, genre, cover) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+    connection.query(sql, [bookId,title, author, isbn, quantity, price, genre, cover], (error, results) => {
         if (error) {
             console.error("Error adding book:", error);
             res.status(500).send('Error adding book');
@@ -317,9 +289,9 @@ app.post('/addBook', upload.single('cover'), (req, res) => {
     });
 });
 
-app.get('/updateBook/:id', checkAuthenticated, checkAdmin, (req, res) => {
+app.get('/updateBook/:id', checkAuthenticated, checkAdmin, (req,res) => {
     const bookId = req.params.id;
-    const sql = 'SELECT * FROM books WHERE bookId = ?';
+    const sql = 'SELECT * FROM book WHERE bookId = ?';
 
     connection.query(sql, [bookId], (error, results) => {
         if (error) throw error;
@@ -338,9 +310,9 @@ app.post('/updateBook/:id', upload.single('cover'), (req, res) => {
     let cover = currentCover;
     if (req.file) {
         cover = req.file.filename;
-    }
+    } 
 
-    const sql = 'UPDATE books SET title = ?, author = ?, isbn = ?, quantity = ?, price = ?, genre = ?, cover = ? WHERE bookId = ?';
+    const sql = 'UPDATE book SET title = ?, author = ?, isbn = ?, quantity = ?, price = ?, genre = ?, cover = ? WHERE bookId = ?';
     connection.query(sql, [title, author, isbn, quantity, price, genre, cover, bookId], (error, results) => {
         if (error) {
             console.error("Error updating book:", error);
@@ -352,40 +324,95 @@ app.post('/updateBook/:id', upload.single('cover'), (req, res) => {
 });
 
 app.get('/deleteBook/:id', checkAuthenticated, checkAdmin, (req, res) => {
-    const bookId = req.params.bookId;
-    const quantity = parseInt(req.body.quantity) || 1;
+    const bookId = req.params.id;
 
     const sql = 'DELETE FROM book WHERE bookId = ?';
     connection.query(sql, [bookId], (error, results) => {
-        if (error) throw error;
+        if (error) {
+            console.error("Error deleting book:", error);
+            return res.status(500).send("Error deleting book");
+        }
 
-        if (results.length > 0) {
-            const book = results[0];
-
-            if (!req.session.cart) {
-                req.session.cart = [];
+        if (results.affectedRows > 0) {
+            // Optional: Remove book from session cart if exists
+            if (req.session.cart) {
+                req.session.cart = req.session.cart.filter(item => Number(item.bookId) !== Number(bookId));
             }
 
-            const existingItem = req.session.cart.find(item => item.bookId === bookId);
-            if (existingItem) {
-                existingItem.quantity += quantity;
-            } else {
-                req.session.cart.push({
-                    bookId: book.bookId,
-                    title: book.title,
-                    author: book.author,
-                    price: Number(book.price),
-                    quantity: quantity,
-                    cover: book.cover
-                });
-            }
-
-            res.redirect('/shopping');
+            res.redirect('/inventory'); // or wherever you want to redirect after deletion
         } else {
             res.status(404).send("Book not found");
         }
     });
 });
 
+app.post('/remove-from-cart/:id', checkAuthenticated, (req, res) => {
+    const bookId = parseInt(req.params.id);
+
+    if (!req.session.cart) {
+        return res.redirect('/shopping');
+    }
+
+    req.session.cart = req.session.cart.filter(item => Number(item.bookId) !== bookId);
+    res.redirect('/cart');
+
+});
+
+
+ 
+
+app.get('/checkout', checkAuthenticated, (req, res) => {
+    const cart = req.session.cart || [];
+        let total = 0;
+    for (let i = 0; i < cart.length; i++) {
+        total += Number(cart[i].price) * Number(cart[i].quantity);
+    }
+ 
+    res.render('checkout', { user: req.session.user, cart, total });
+});
+ 
+app.post('/confirm-checkout', checkAuthenticated, async (req, res) => {
+    const cart = req.session.cart || [];
+ 
+    for (let i = 0; i < cart.length; i++) {
+        const item = cart[i];
+        const bookId = item.bookId;
+ 
+        await new Promise((resolve, reject) => {
+            connection.query(
+                'UPDATE book SET quantity = quantity - 1 WHERE bookId = ? AND quantity > 0',
+                [bookId],
+                (err, result) => {
+                    if (err) reject(err);
+                    else resolve();
+                }
+            );
+        });
+    }
+    req.session.cart = [];
+    res.redirect('/shopping');
+});
+
+app.post('/decrease-from-cart/:bookId', (req, res) => {
+  const bookId = Number(req.params.bookId);
+
+  if (req.session.cart) {
+    const itemIndex = req.session.cart.findIndex(item => Number(item.bookId) === bookId);
+
+    if (itemIndex !== -1) {
+      if (req.session.cart[itemIndex].quantity > 1) {
+        req.session.cart[itemIndex].quantity -= 1;
+      } else {
+        req.session.cart.splice(itemIndex, 1);
+      }
+    }
+  }
+
+  res.redirect('/cart');
+});
+
+
+
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on ${PORT}`));

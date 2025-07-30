@@ -38,36 +38,12 @@
 
   <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h3>Welcome, <%= user.username %> (<%= user.role %>)</h3>
+      <h3>Welcome  <%= user.username %> <%= user.role %></h3>
       <a href="/shopping" class="btn btn-outline-secondary">View Customer Store</a>
     </div>
     
     <h2 class="text-center mb-4">Book Inventory Management</h2>
-    <form class="row g-3 mb-4" method="GET" action="/inventory">
-      <div class="col-md-6">
-        <input
-          type="text"
-          name="search"
-          placeholder="Search by title..."
-          class="form-control"
-          value="<%= search %>">
-      </div>
     
-      <div class="col-md-4">
-        <select name="genre" class="form-select">
-          <option value="">All Genres</option>
-          <option value="Fiction" <%= genreFilter === 'Fiction' ? 'selected' : '' %>>Fiction</option>
-          <option value="Non-fiction" <%= genreFilter === 'Non-fiction' ? 'selected' : '' %>>Non-fiction</option>
-          <option value="Science" <%= genreFilter === 'Science' ? 'selected' : '' %>>Science</option>
-          <option value="Fantasy" <%= genreFilter === 'Fantasy' ? 'selected' : '' %>>Fantasy</option>
-          <!-- Add other genres you have -->
-        </select>
-      </div>
-  
-  <div class="col-md-2">
-    <button type="submit" class="btn btn-primary w-100">Search</button>
-  </div>
-</form>
     <div class="table-responsive">
       <table class="table table-hover align-middle">
         <thead class="table-dark">
@@ -95,7 +71,9 @@
               <td><%= books[i].isbn %></td>
               <td><%= books[i].genre %></td>
               <td><%= books[i].quantity %></td>
-              <td>$<%= books[i].price.toFixed(2) %></td>
+              <td>
+  $<%= typeof books[i].price === 'number' ? books[i].price.toFixed(2) : parseFloat(books[i].price || 0).toFixed(2) %>
+</td>
               <td class="action-links">
                 <a href="/updateBook/<%= books[i].bookId %>" class="btn btn-sm btn-warning">Edit</a>
                 <a href="/deleteBook/<%= books[i].bookId %>" 
