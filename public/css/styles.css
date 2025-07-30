@@ -42,7 +42,7 @@
     max-width: 500px;
 }
 
-    body {
+body {
 background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
 color: #f0f0f0;
 font-family: 'Segoe UI', sans-serif;
@@ -79,3 +79,20 @@ a.btn:hover {
 background-color: #0ff;
 color: black;
 }
+
+.login-container {
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 2rem;
+      border-radius: 10px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+      background-color: white;
+    }
+body {
+      background-color: #f8f9fa;
+      padding-top: 50px;
+    }
+    .bookstore-brand {
+      font-weight: 700;
+      color: #5a3d2b !important;
+    }
