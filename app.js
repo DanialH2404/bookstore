@@ -88,7 +88,6 @@ const validateRegistration = (req, res, next) => {
     if (!username || !email || !password || !address || !contact || !role) {
         return res.status(400).send('All fields are required.');
     }
-
     if (password.length < 6) {
         req.flash('error', 'Password should be at least 6 or more characters long');
         req.flash('formData', req.body);
@@ -241,7 +240,7 @@ app.get('/cart', checkAuthenticated, (req, res) => {
 
 app.get('/checkout', checkAuthenticated, (req, res) => {
     const cart = req.session.cart || [];
-    let total = 0;
+        let total = 0;
     for (let i = 0; i < cart.length; i++) {
         total += Number(cart[i].price) * Number(cart[i].quantity);
     }
@@ -295,7 +294,7 @@ app.get('/book/:id', checkAuthenticated, (req, res) => {
 });
 
 app.get('/addBook', checkAuthenticated, checkAdmin, (req, res) => {
-    res.render('addBook', { user: req.session.user });
+    res.render('addBook', {user: req.session.user } ); 
 });
 
 app.post('/addBook', upload.single('cover'), (req, res) => {
