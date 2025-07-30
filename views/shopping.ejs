@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <title>Browse Books | Book Haven</title>
+  <style>
+    .book-card {
+      transition: transform 0.3s ease;
+      height: 100%;
+    }
+    .book-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .book-cover {
+      height: 200px;
+      object-fit: contain;
+      margin: 0 auto;
+      display: block;
+    }
+    .stock-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+    }
+    .genre-badge {
+      font-size: 0.75rem;
+    }
+    .quantity-select {
+      width: 70px;
+      display: inline-block;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="/">Book Haven</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/cart">
+              <i class="bi bi-cart"></i> Cart
+              <% if (cart && cart.length > 0) { %>
+                <span class="badge bg-danger rounded-pill"><%= cart.reduce((total, item) => total + item.quantity, 0) %></span>
+              <% } %>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/logout"><i class="bi bi-box-arrow-right"></i> Logout</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2>Welcome, <%= user.username %> <span class="badge bg-secondary"><%= user.role %></span></h2>
+      <div>
+        <span class="me-3">Items in cart: <strong><%= cart ? cart.reduce((total, item) => total + item.quantity, 0) : 0 %></strong></span>
+        <a href="/cart" class="btn btn-outline-primary">
+          <i class="bi bi-cart-check"></i> View Cart
+        </a>
+      </div>
+    </div>
+
+    <h1 class="text-center mb-5">Our Book Collection</h1>
+
+    <% if (books.length === 0) { %>
+      <div class="alert alert-info text-center">
+        <h4>No books available at the moment</h4>
+        <p>Please check back later or contact our support</p>
+      </div>
+    <% } else { %>
+      <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        <% books.forEach(book => { %>
+          <div class="col">
+            <div class="card h-100 book-card">
+              <% if (book.quantity <= 0) { %>
+                <span class="badge bg-danger stock-badge">Out of stock</span>
+              <% } else if (book.quantity < 5) { %>
+                <span class="badge bg-warning text-dark stock-badge">Only <%= book.quantity %> left</span>
+              <% } %>
+              
+              <img src="/images/<%= book.cover %>" class="card-img-top book-cover p-3" alt="<%= book.title %>">
+              
+              <div class="card-body">
+                <h5 class="card-title"><%= book.title %></h5>
+                <p class="card-text text-muted">by <%= book.author %></p>
+                <span class="badge bg-info genre-badge"><%= book.genre %></span>
+              </div>
+              
+              <div class="card-footer bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                  <h5 class="mb-0 text-primary">$<%= Number(book.price).toFixed(2) %></h5>
+                  <% if (book.quantity > 0) { %>
+                    <form action="/add-to-cart/<%= book.bookId %>" method="POST" class="d-flex align-items-center">
+                      <select name="quantity" class="form-select form-select-sm quantity-select" 
+                        <%= book.quantity < 5 ? 'max='+book.quantity : '' %>>
+                        <% const maxQty = Math.min(5, book.quantity); %>
+                        <% for (let q = 1; q <= maxQty; q++) { %>
+                          <option value="<%= q %>"><%= q %></option>
+                        <% } %>
+                      </select>
+                      <button type="submit" class="btn btn-sm btn-success">
+                        <i class="bi bi-cart-plus"></i> Add
+                      </button>
+                    </form>
+                  <% } else { %>
+                    <button class="btn btn-sm btn-secondary" disabled>Out of Stock</button>
+                  <% } %>
+                </div>
+                <a href="/book/<%= book.bookId %>" class="btn btn-link btn-sm mt-2">View Details</a>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+</body>
+</html>
